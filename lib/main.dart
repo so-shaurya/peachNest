@@ -4,11 +4,13 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_drawing_board/flutter_drawing_board.dart';
+import 'package:gsheets/gsheets.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   runApp(const peaceNest());
@@ -102,7 +104,9 @@ class homePage extends StatelessWidget {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const aiBox()),
+                  MaterialPageRoute(
+                    builder: (context) => const MoodJournalScreen(),
+                  ),
                 );
               },
               child: Container(
@@ -111,7 +115,7 @@ class homePage extends StatelessWidget {
                   color: Colors.lightGreen[200],
                   child: Center(
                     child: Text(
-                      'Not Sure What I Am Feeling',
+                      'Journal What You Are Feeling',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 20,
@@ -150,37 +154,183 @@ Widget buildBottomBar(BuildContext context, int selectedIndex) {
       } else if (index == 2) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const aiBox()),
+          MaterialPageRoute(builder: (context) => const MoodJournalScreen()),
         );
       }
     },
     items: const [
       BottomNavigationBarItem(icon: Icon(Icons.whatshot), label: "Anger"),
       BottomNavigationBarItem(icon: Icon(Icons.spa), label: "Anxiety"),
-      BottomNavigationBarItem(icon: Icon(Icons.chat_bubble), label: "AI Box"),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.book),
+        label: "Journal", // changed from AI Box → Journal
+      ),
     ],
   );
 }
 
-class aiBox extends StatelessWidget {
-  const aiBox({super.key});
+const _credentials = r'''
+{
+  "type": "service_account",
+  "project_id": "YOUR_PROJECT_ID",
+  "private_key_id": "YOUR_PRIVATE_KEY_ID",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----END PRIVATE KEY-----\n",
+  "client_email": "YOUR_SERVICE_ACCOUNT_EMAIL",
+  "client_id": "YOUR_CLIENT_ID",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "YOUR_CERT_URL"
+}
+''';
+
+const _spreadsheetId = '1Xyx6rOrKyYHY72AO8aSQMJh9i43VMq03gmZV0O6gg60';
+
+class MoodJournalScreen extends StatefulWidget {
+  const MoodJournalScreen({super.key});
+
+  @override
+  State<MoodJournalScreen> createState() => _MoodJournalScreenState();
+}
+
+class _MoodJournalScreenState extends State<MoodJournalScreen> {
+  final TextEditingController _noteController = TextEditingController();
+  final List<String> _history = [];
+  Worksheet? _sheet;
+
+  @override
+  void initState() {
+    super.initState();
+    _initSheet();
+  }
+
+  Future<void> _initSheet() async {
+    final gsheets = GSheets(_credentials);
+    final ss = await gsheets.spreadsheet(_spreadsheetId);
+    _sheet =
+        ss.worksheetByTitle('Mood Journal') ??
+        await ss.addWorksheet('Mood Journal');
+
+    final firstRow = await _sheet!.values.row(1);
+    if (firstRow.isEmpty) {
+      await _sheet!.values.insertRow(1, ['Timestamp', 'Note']);
+    }
+  }
+
+  Future<void> _saveNote() async {
+    final note = _noteController.text.trim();
+    if (note.isEmpty || _sheet == null) return;
+
+    final timestamp = DateTime.now().toIso8601String();
+    await _sheet!.values.appendRow([timestamp, note]);
+
+    setState(() {
+      _history.add("$timestamp – $note");
+      _noteController.clear();
+    });
+  }
+
+  Future<void> _openSheet() async {
+    final url = "https://docs.google.com/spreadsheets/d/$_spreadsheetId/edit";
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Could not open sheet.")));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          title: const Text(
-            'PeaceNest',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          centerTitle: true,
+    return Scaffold(
+      backgroundColor: Colors.lightBlue[50], // soft background like others
+      appBar: AppBar(
+        backgroundColor: Colors.lightBlue[200],
+        title: const Text(
+          "Mood Journal",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
         ),
-        body: const Center(),
-        bottomNavigationBar: buildBottomBar(context, 2),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 6,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _noteController,
+                decoration: const InputDecoration(
+                  hintText: "Write how you are feeling...",
+                  border: InputBorder.none,
+                ),
+                maxLines: 3,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.lightBlue[400],
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: _saveNote,
+              child: const Text("Save to Journal"),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _history.length,
+                itemBuilder: (_, i) => Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  child: ListTile(
+                    leading: const Icon(Icons.note, color: Colors.blue),
+                    title: Text(_history[i]),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.lightBlue[600],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onPressed: _openSheet,
+          icon: const Icon(Icons.open_in_browser),
+          label: const Text("Open Mood Journal Sheet"),
+        ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
   }
 }
 

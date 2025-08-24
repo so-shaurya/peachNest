@@ -37,6 +37,8 @@ dependencies:
   just_audio: ^0.9.42
   flutter_drawing_board: ^0.9.8
   http: ^1.2.1
+  gsheets: ^0.5.0
+  url_launcher: ^6.3.0
 
 
 
