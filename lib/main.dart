@@ -140,7 +140,7 @@ Widget buildBottomBar(BuildContext context, int selectedIndex) {
     selectedItemColor: Colors.green[800],
     unselectedItemColor: Colors.grey,
     onTap: (index) {
-      if (index == selectedIndex) return; // avoid reload same page
+      if (index == selectedIndex) return; 
       if (index == 0) {
         Navigator.pushReplacement(
           context,
@@ -163,7 +163,7 @@ Widget buildBottomBar(BuildContext context, int selectedIndex) {
       BottomNavigationBarItem(icon: Icon(Icons.spa), label: "Anxiety"),
       BottomNavigationBarItem(
         icon: Icon(Icons.book),
-        label: "Journal", // changed from AI Box → Journal
+        label: "Journal", 
       ),
     ],
   );
@@ -245,7 +245,7 @@ class _MoodJournalScreenState extends State<MoodJournalScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.lightBlue[50], // soft background like others
+      backgroundColor: Colors.lightBlue[50], 
       appBar: AppBar(
         backgroundColor: Colors.lightBlue[200],
         title: const Text(
@@ -740,8 +740,7 @@ class _DrawingBoxScreenState extends State<DrawingBoxScreen> {
             ),
             showDefaultActions: true,
             showDefaultTools: true,
-            // You can customize the tools using defaultToolsBuilder,
-            // or leave defaults if you're happy with them.
+         
           ),
         ),
       ),
